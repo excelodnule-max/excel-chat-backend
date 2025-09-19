@@ -1,21 +1,24 @@
+// server.js
 const express = require("express");
-const axios = require("axios");
-const bodyParser = require("body-parser");
 const cors = require("cors");
+const axios = require("axios");
 require("dotenv").config();
 
 const app = express();
-app.use(cors());                 // dozvoli pozive iz Adalo-a
-app.use(bodyParser.json());
 
-// Health-check
-app.get("/", (req, res) => {
+// middlewares
+app.use(cors());            // dozvoljava pozive iz browsera (Adalo i sl.)
+app.use(express.json());    // parsira JSON telo zahteva
+
+// health check
+app.get("/", (_req, res) => {
   res.send("✅ Excel Chat Backend is running!");
 });
 
-// Chat endpoint
+// chat endpoint
 app.post("/chat", async (req, res) => {
-  const { message } = req.body;
+  const { message } = req.body || {};
+
   if (!message) {
     return res.status(400).json({ error: "Missing 'message' in body" });
   }
@@ -24,9 +27,10 @@ app.post("/chat", async (req, res) => {
     const response = await axios.post(
       "https://api.openai.com/v1/chat/completions",
       {
-        model: "gpt-3.5-turbo",
+        // Ako želiš stariji model, zameni sa "gpt-3.5-turbo"
+        model: "gpt-4o-mini",
+        temperature: 0.3,
         messages: [{ role: "user", content: message }],
-        temperature: 0.6,
       },
       {
         headers: {
@@ -36,19 +40,19 @@ app.post("/chat", async (req, res) => {
       }
     );
 
-    const reply =
-      response.data?.choices?.[0]?.message?.content?.trim() ||
-      "Nešto nije u redu sa odgovorom.";
-
-    res.json({ reply }); // čist JSON koji Adalo lako mapira
+    const reply = response.data?.choices?.[0]?.message?.content ?? "";
+    res.json({ reply });
   } catch (err) {
-    console.error("OpenAI error:", err?.response?.data || err.message);
+    console.error("OpenAI error:", err.response?.data || err.message);
     res.status(500).json({
-      error: "Chat error",
-      details: err?.response?.data || err.message,
+      error: "OpenAI request failed",
+      details: err.response?.data || err.message,
     });
   }
 });
 
+// Render koristi PORT iz okruženja
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
